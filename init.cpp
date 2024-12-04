@@ -6,6 +6,10 @@
 #include <GL/glut.h>
 #endif // __APPLE_CC__
 
+void init(){
+    
+}
+
 void display(){
     glClear(GL_COLOR_BUFFER_BIT); // buffers - color buffer (2D), color + depth buffer (3D)
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // don't fill polygon
