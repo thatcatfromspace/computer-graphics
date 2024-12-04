@@ -7,7 +7,10 @@
 #endif // __APPLE_CC__
 
 void init(){
-    
+    glClearColor(0.2, 0.5, 0.4, 0.0); 
+    glMatrixMode(GL_PROJECTION); // set projection mode to map 3D/2D coordinates to 2D screen
+    glLoadIdentity(); // loads the identity matrix for projection - no rotations/scaling
+    gluOrtho2D(0, 400, 0, 300); // left, right, top, bottom
 }
 
 void display(){
