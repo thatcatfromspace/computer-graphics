@@ -1,0 +1,13 @@
+active vs passive mouse tracking
+
+1. the following parametric equation represents a circle: x = A + r*cos(t), y = B + r*sin(t)
+, z = 0, where t lies between 0 to 2*pi. (A, B, 0) is the center of the circle. draw a circle.
+
+2. the equation of a parabola is given by x = 50 + 50t, y = 100t, z = 0, draw the parabola given
+- 1 <= t <= 1
+
+3. color the area between 2 concentric circles
+
+4. draw a sin curve between x = -pi to x = pi
+
+5. draw an ellipse between x = X + a*cos(t), y = Y + B*sin(t) where A = semi-major, B = semi-minor, Z = 0 and 0 <= t <= 2*pi
