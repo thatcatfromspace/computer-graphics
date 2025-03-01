@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
-from PIL import Image, ImageEnhance, ImageColor
+from PIL import Image
 import cv2
 import numpy
 from scipy import ndimage
+from skimage.morphology import skeletonize
 
 class ImageUtils:
     def show_image(self, img_path: str):
@@ -197,8 +198,6 @@ class Filters():
 
         Note: The minimum filter is a morphological operation known as erosion.
         '''
-
-        
         image = cv2.imread(img_pth)
         kernel = numpy.ones((kernel_size, kernel_size), numpy.float32)
         filtered_image = cv2.erode(image, kernel)
@@ -226,7 +225,7 @@ class EdgeDetection:
 
     **Special Case: `ddepth = -1`**
 
-    Setting `ddepth` to `-1` indicates that the output image will have the same depth as the source image. This is useful when you want to maintain consistency in data types between the input and output images.
+    Setting `ddepth` to `-1` indicates that the output image will have the same depth as the source image. This is useful when you want to maintain consistency in data types between the inumpyut and output images.
     '''
     def sobel_detection(self, img_pth: str, kernel_size: int = 3):
         '''
@@ -363,7 +362,228 @@ class MorphologicalOperations:
     '''
     For dilation, erosion and their greyscale counterparts, see `Filters`.
     '''
+    def opening_closing(self, img_pth: str, kernel_size: int):
+        '''
+        Opening and closing are morphological operations used to remove noise and small objects from images.
+
+        Opening: This operation performs erosion followed by dilation, removing small objects and smoothing boundaries.
+        Closing: This operation performs dilation followed by erosion, filling small holes and smoothing boundaries.
+        '''
+        image = cv2.imread(img_pth)
+        kernel = numpy.ones((kernel_size, kernel_size), numpy.uint8)
+        opening = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+        closing = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+
+        fig, ax = plt.subplots(1, 3)
+        ax[0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        ax[0].set_title("Original image")
+        ax[1].imshow(cv2.cvtColor(opening, cv2.COLOR_BGR2RGB))
+        ax[1].set_title("Opening")
+        ax[2].imshow(cv2.cvtColor(closing, cv2.COLOR_BGR2RGB))
+        ax[2].set_title("Closing")
+
+        plt.show()
+
+    def hit_or_miss(self, img_pth: str):
+        '''
+        The hit-or-miss transform is a morphological operation used for pattern matching in binary images. It identifies the locations of specific shapes or structures within an image by detecting the presence of a pattern and its complement.
+
+        The hit-or-miss transform is particularly useful for detecting objects with specific configurations, such as corners, T-junctions, or other geometric shapes. By defining a pair of structuring elements—one for the pattern and one for its complement—the operation can locate these structures within the image.
+        '''
+        img = cv2.imread(img_pth, cv2.IMREAD_GRAYSCALE)
+        _, binary_image = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY) # ensure that image is binary
+        kernel = numpy.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], numpy.uint8) # kernel is the pattern needed to be detected
+        hit_or_miss = cv2.morphologyEx(img, cv2.MORPH_HITMISS, kernel)
+        
+        fig, ax = plt.subplots(1, 2)
+        ax[0].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        ax[0].set_title("Original image")
+        ax[1].imshow(cv2.cvtColor(hit_or_miss, cv2.COLOR_BGR2RGB))
+        ax[1].set_title("Hit or miss")
+
+        plt.show()
+
+    def thicken(self, img_pth: str):
+        image = cv2.imread(img_pth, cv2.IMREAD_GRAYSCALE)
+        _, binary_image = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY)
+
+        # invert
+        binary_image = binary_image == 0
+        skeleton = skeletonize(binary_image)
+
+        # invert back
+        skeleton = numpy.invert(skeleton)
+
+        plt.imshow(skeleton, cmap='gray')
+        plt.show()
+
+    def thin(self, img_pth: str, kernel_size: tuple[int, int] = (3, 3)):
+        image = cv2.imread(img_pth, cv2.IMREAD_GRAYSCALE)
+        _, binary_image = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY)
+
+        kernel = numpy.ones(kernel_size, numpy.uint8)   
+
+        thinned_image = cv2.dilate(binary_image, kernel)
+
+        plt.imshow(thinned_image, cmap='gray')
+        plt.show()
+
+    def skeletonize_image(self, img_path: str):
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+
+        _, bin_img = cv2.threshold(img, 125, 255, cv2.THRESH_BINARY)
+
+        skeleton = skeletonize(bin_img)
+
+        skeleton = numpy.invert(skeleton)
+
+        plt.imshow(skeleton, cmap='grey')
+        plt.show()
+
+
+class Convolutions:
+    def ideal_lowpass_filter(self, image_path: str, cutoff_frequency: int):
+        '''
+        Ideal lowpasss filters need to performed in frequency domain because of the ability to specify
+        a precise cutoff frequency. In spatial domains, infinite impulses make it extremely hard
+        to perform lowpass filtering.
+        '''
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        if image is None:
+            print("Error: Image not found or unable to load.")
+            return
+
+        # Get image dimensions
+        rows, cols = image.shape
+        crow, ccol = rows // 2 , cols // 2  # center
+
+        # Perform FFT
+        dft = numpy.fft.fft2(image)
+        dft_shift = numpy.fft.fftshift(dft)
+
+        # Create a mask with a central square of 1s and the rest will be 0s
+        mask = numpy.zeros((rows, cols), numpy.uint8)
+        mask[crow - cutoff_frequency:crow + cutoff_frequency, ccol - cutoff_frequency:ccol + cutoff_frequency] = 1
+
+        # Apply mask to the shifted DFT
+        fshift = dft_shift * mask
+
+        # Inverse FFT to get the image back
+        f_ishift = numpy.fft.ifftshift(fshift)
+        img_back = numpy.fft.ifft2(f_ishift)
+        img_back = numpy.abs(img_back)
+
+        # Display the results
+        _, ax = plt.subplots(1, 2)
+        ax[0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        ax[1].imshow(img_back, cmap='grey')
+
+        plt.show()
+
+    def gaussian_lowpass_filter(self, img_path: str, kernel: int = 2):
+        image = cv2.imread(img_path)
+        gaussian = ndimage.gaussian_filter(image, kernel) 
+
+        _, ax = plt.subplots(1, 2)
+
+        ax[0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), cmap='grey')
+        ax[0].set_title("Image")
+        ax[0].axis('off')
+        ax[1].imshow(gaussian)
+        ax[1].set_title("Gaussian blur")
+        ax[1].axis('off')
+
+        plt.show()
+
+
+    def gaussian_highpass_filter(self, img_path: str, kernel: int = 2):
+        image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        gaussian = ndimage.gaussian_filter(image, kernel) 
+
+        high_pass = image - gaussian
+        high_pass_norm = cv2.normalize(high_pass, None, 0, 255, cv2.NORM_MINMAX)
+        high_pass_norm = high_pass_norm.astype(numpy.uint8)
+
+        _, ax = plt.subplots(1, 2)
+
+        ax[0].imshow(image, cmap='grey')
+        ax[0].set_title("Image")
+        ax[0].axis('off')
+        ax[1].imshow(cv2.cvtColor(high_pass_norm, cv2.COLOR_GRAY2RGB))
+        ax[1].set_title("Gaussian blur")
+        ax[1].axis('off')
+
+        plt.show()
+
+
+class Segmentation:
+    def histogram_segmentation(self, image_path: str, bins: int = 60):
+        '''
+        Uses Otsu's method (a popular histogram-based thresholding approach).
+        It computes the threshold that minimizes intra-class variance.
+        '''
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+
+        image_smooth = ndimage.gaussian_filter(image, sigma=2)
+        
+        hist, bin_edges = numpy.histogram(image_smooth, bins=bins, range=(0, 256))
+        # The expression bin_edges[:-1] takes all elements of the bin_edges array except the last one, 
+        # while bin_edges[1:] takes all elements except the first one. By adding these two arrays element-wise 
+        # and multiplying by 0.5, the code effectively computes the midpoint for each bin.
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        
+        ret, segmented = cv2.threshold(image_smooth, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        print("Otsu threshold value:", ret)
+        
+        fig, ax = plt.subplots(1, 3)
+        
+        ax[0].imshow(image, cmap='gray')
+        ax[0].set_title("Original Image")
+        ax[0].axis('off')
+        
+        ax[1].plot(bin_centers, hist, lw=2)
+        ax[1].set_title("Histogram")
+        ax[1].set_xlabel("Intensity Value")
+        ax[1].set_ylabel("Pixel Count")
+        ax[1].axvline(ret, color='r', linestyle='--', lw=2)  # mark the threshold
+        
+        ax[2].imshow(segmented, cmap='gray')
+        ax[2].set_title("Segmented Image")
+        ax[2].axis('off')
+        
+        plt.show()
+
+    def region_based_segmentation(self,   img_path: str):
+        image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        _, binary_image = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        num_labels, labels_im = cv2.connectedComponents(binary_image)
+
+        fig, ax = plt.subplots(1, 2)
+        ax[0].imshow(image, cmap='gray')
+        ax[0].set_title("Original image")
+        ax[1].imshow(labels_im, cmap='nipy_spectral')
+        ax[1].set_title("Region-based segmentation")
+
+        plt.show()
+ 
     
+class NoiseRemoval:
+    def remove_noise(self, img_path: str):
+        image = cv2.imread(img_path)
+        # h : parameter deciding filter strength. Higher h value removes noise better, but removes details of image also. (10 is ok)
+        # hForColorComponents : same as h, but for color images only. (normally same as h)
+        # templateWindowSize : should be odd. (recommended 7)
+        # searchWindowSize : should be odd. (recommended 21)
+
+        denoised = cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
+        
+        _, ax = plt.subplots(1, 2)
+        ax[0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        ax[0].set_title("Original image")
+        ax[1].imshow(cv2.cvtColor(denoised, cv2.COLOR_BGR2RGB))
+        ax[1].set_title("Denoised image")
+        plt.show() 
 
 # io = ImageUtils() 
 
@@ -426,6 +646,29 @@ class MorphologicalOperations:
 # edge.laplacian_of_gaussian('flower.jpg', 3) 
 
 # Image enhancement
-enhancer = ImageEnhancement()
+# enhancer = ImageEnhancement()
 # enhancer.power_law_transformation('flower.jpg', 0.7)
-enhancer.log_transformation('flower.jpg')
+# enhancer.log_transformation('flower.jpg')
+
+# Morphological operations
+# morph = MorphologicalOperations()
+
+# morph.hit_or_miss('flower.jpg')
+# morph.thicken('flower.jpg')
+# morph.thin('flower.jpg', (3, 3))
+# morph.skeletonize_image('flower.jpg')
+
+# convolutions = Convolutions()
+
+# convolutions.ideal_lowpass_filter('flower.jpg', 30)
+# convolutions.gaussian_lowpass_filter('flower.jpg', 5)
+# convolutions.gaussian_highpass_filter('flower.jpg', 5)
+
+
+# segment = Segmentation()
+
+# segment.histogram_segmentation('flower.jpg')
+# segment.region_based_segmentation('flower.jpg')
+
+removal = NoiseRemoval()
+removal.remove_noise('girl.jpg')
